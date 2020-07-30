@@ -25,6 +25,12 @@ Optional values:
 * a _PD notification rule id_
 
 
+### Requirements
+
+* python 3
+* requests
+
+
 ### Running the script
 This script can be run in any of three ways:
 
