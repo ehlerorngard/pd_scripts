@@ -5,6 +5,8 @@ import pprint
 import argparse
 import configparser
 import sys
+import time
+from threading import Event, Thread
 
 
 #############################
@@ -18,15 +20,13 @@ email = None # do not modify this value here
 method = None
 user_id = None
 notification_rule_id = None
+interval = None
 
 config = configparser.ConfigParser()
 config.read('config.ini')
 if 'vars' in config:
 	api_key = config['vars'].get('api_key', '')
 	email = config['vars'].get('email', '')
-
-print(email)
-print(api_key)
 
 
 #############################
@@ -69,6 +69,25 @@ def proceed(res):
 			return True, {}
 
 
+def is_num(str):
+	try:
+		int(str)
+	except:
+		return False
+	return int(str)
+
+
+def take_a_number(str):
+	num = is_num(input(str))
+	if not num:
+		print("Must enter a number")
+		return take_a_number(str)
+	elif num < 0:
+		print("Must be greater than 0")
+		return take_a_number(str)
+	return num
+
+
 def extract_subdomain(user):
     """
     Function: extract_subdomain
@@ -84,6 +103,25 @@ def extract_subdomain(user):
         return None
 
     return url.split("/")[2].split('.')[0]
+
+
+def will_repeat(interval):
+	repeat = False
+	if interval:
+		repeat = True
+	elif aquiesces(f"Would you like your chosen action(s) to be exectued repeatedly? "):
+		repeat = True
+		interval = take_a_number("Rerun the action repeatedly how many seconds after "
+								+ "each completion? ")
+	return repeat, interval
+
+
+def recur(interval, func, *args):
+	print("\nTo exit, enter ^C \n")
+	while True:
+		func(*args)
+		print(f'waiting {interval} seconds...')
+		time.sleep(interval)
 
 
 ###########################
@@ -167,11 +205,34 @@ def delete_all_notification_rules(user):
 		delete_notification_rule(user.get('id'), notification_rule.get('id'))
 
 
+def delete_all_users_handoff(users):
+	for user in users:
+		print(f"{user['name']} ( {user['id']} )")
+		delete_all_handoff_notification_rules(user)
+
+
+def delete_all_users_notif(users):
+	for user in users:
+		print(f"{user['name']} ( {user['id']} )")
+		delete_all_notification_rules(user)
+
+
+def delete_all_users_handoff(users):
+	for user in users:
+		print(f"{user['name']} ( {user['id']} )")
+		delete_all_handoff_notification_rules(user)
+
+
+def delete_all_users_all_notif(users):
+	delete_all_users_handoff(users)
+	delete_all_users_notif(users)	
+
+
 ##########################
 #### main ##############
 ######################
 def main():
-	global email, api_key, method, user_id, notification_rule_id
+	global email, api_key, method, user_id, notification_rule_id, interval
 	if email == '':
 		email = input("Email address for 'From' header: ")
 
@@ -202,17 +263,30 @@ def main():
 	elif method == 'delete':
 		if not user_id:
 			users = get_all_users()
-			if aquiesces(f"Would you like to delete all on-call handoff notification "
-				          + f"rules for all users on subdomain '{subdomain}'? "):
-				for user in users:
-					print(f"{user['name']} ( {user['id']} )")
-					delete_all_handoff_notification_rules(user)
+			del_handoff = aquiesces(f"Would you like to delete all on-call handoff notification "
+				          + f"rules for all users on subdomain '{subdomain}'? (y/n) ")
+			del_notif = aquiesces(f"Would you like to delete all incident notification "
+				          + f"rules for all users on subdomain '{subdomain}'? (y/n) ")
 
-			if aquiesces(f"Would you like to delete all incident notification "
-				          + f"rules for all users on subdomain '{subdomain}'? "):
-				for user in users:
-					print(f"{user['name']} ( {user['id']} )")
-					delete_all_notification_rules(user)
+			both = False
+			if del_notif and del_handoff:
+				both = True
+
+			repeat, interval = will_repeat(interval)
+
+			if repeat:
+				if both:
+					recur(interval, delete_all_users_all_notif, users)
+				elif del_handoff:
+					recur(interval, delete_all_users_handoff, users)
+				elif del_notif:
+					recur(interval, delete_all_users_notif, users)
+			else:
+				if del_handoff:
+					delete_all_users_handoff(users)
+				if del_notif:
+					delete_all_users_notif(users)
+
 		else:
 			delete_all_notification_rules(get_user_by_id(user_id))
 	else:
