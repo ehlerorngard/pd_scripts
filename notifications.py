@@ -157,12 +157,14 @@ def delete_notification_rule(u_id, n_id):
 	return
 
 
+def delete_all_handoff_notification_rules(user):
+	for handoff_rule in get_handoff_rules(user.get('id')):
+		delete_handoff_rule(user.get('id'), handoff_rule.get('id'))
+
+
 def delete_all_notification_rules(user):
 	for notification_rule in user.get('notification_rules'):
 		delete_notification_rule(user.get('id'), notification_rule.get('id'))
-
-	for handoff_rule in get_handoff_rules(user.get('id')):
-		delete_handoff_rule(user.get('id'), handoff_rule.get('id'))
 
 
 ##########################
@@ -200,14 +202,17 @@ def main():
 	elif method == 'delete':
 		if not user_id:
 			users = get_all_users()
-			if aquiesces(f"Are you sure you want to delete all notification "
+			if aquiesces(f"Would you like to delete all on-call handoff notification "
+				          + f"rules for all users on subdomain '{subdomain}'? "):
+				for user in users:
+					print(f"{user['name']} ( {user['id']} )")
+					delete_all_handoff_notification_rules(user)
+
+			if aquiesces(f"Would you like to delete all incident notification "
 				          + f"rules for all users on subdomain '{subdomain}'? "):
 				for user in users:
 					print(f"{user['name']} ( {user['id']} )")
 					delete_all_notification_rules(user)
-			else:
-				print("Aborting.")
-				sys.exit()
 		else:
 			delete_all_notification_rules(get_user_by_id(user_id))
 	else:
